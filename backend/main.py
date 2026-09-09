@@ -10,6 +10,8 @@ from fastapi import Query, HTTPException
 from datetime import date, timedelta
 import httpx
 from historical_rates import get_historical_rates
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 app = FastAPI()
 
@@ -22,6 +24,13 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend():
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 @app.post("/history")
 def save_history(

@@ -227,6 +227,14 @@
   table.board td.cur{color:var(--gold-soft); font-weight:600;}
   table.board td.val{color:var(--paper); text-align:right; font-size:16px; font-weight:600;}
   table.board td.rate{color:var(--paper-dim); text-align:right; font-size:12.5px;}
+  .liked-badge{
+    display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:3px 7px;
+    border:1px solid rgba(201,162,39,0.35); border-radius:999px;
+    background:rgba(201,162,39,0.10); color:var(--gold-soft);
+    font-family:var(--sans); font-size:10px; font-weight:600; letter-spacing:0.02em;
+    vertical-align:middle;
+  }
+  .travel-empty{color:var(--paper-dim); font-family:var(--sans); font-size:13px; text-align:center; padding:18px 8px;}
 
   footer.app-footer{
     text-align:center; color:var(--paper-dim); font-size:12px; margin-top:36px; font-family:var(--mono);
@@ -410,17 +418,12 @@ const API = (() => {
       }
     },
 
-    // POST /travel-budget -- not implemented server-side yet, mocked.
-    getTravelBudget: async (baseCurrency, amount, targets) => {
-      try {
-        return await request('/travel-budget', {
-          method: 'POST',
-          body: JSON.stringify({ base_currency: baseCurrency, amount, targets })
-        });
-      } catch (e) {
-        return Mock.travelBudget(baseCurrency, amount, targets);
-      }
-    }
+    // POST /travel-budget
+    getTravelBudget: (baseCurrency, amount, targets) =>
+      request('/travel-budget', {
+        method: 'POST',
+        body: JSON.stringify({ base_currency: baseCurrency, amount, targets })
+      })
   };
 })();
 
@@ -627,7 +630,7 @@ async function loadTrend() {
   } catch (e) {
     data = Mock.trend(state.from, state.to, 30);
   }
-  drawTrend(data.points);
+  drawTrend(data.data || data.points || []);
 }
 
 function drawTrend(points) {
@@ -710,6 +713,7 @@ function renderFavorites() {
       try { await API.deleteFavorite(id); } catch (err) {}
       state.favorites = state.favorites.filter(f => String(f.id) !== String(id));
       renderFavorites();
+      if (state.travelOn) runTravelBudget();
     });
   });
 }
@@ -725,6 +729,7 @@ async function saveFavorite() {
     setStatus('Saved locally — backend not reachable.', 'err');
   }
   renderFavorites();
+  if (state.travelOn) runTravelBudget();
 }
 
 /* =========================================================================
@@ -732,20 +737,63 @@ async function saveFavorite() {
    ========================================================================= */
 async function runTravelBudget() {
   if (!state.travelOn) return;
-  const targets = CURRENCIES.filter(c => c !== state.travelBase).slice(0, 5);
-  let data;
-  try {
-    data = await API.getTravelBudget(state.travelBase, state.travelAmount, targets);
-  } catch (e) {
-    data = Mock.travelBudget(state.travelBase, state.travelAmount, targets);
+
+  const amount = Number(state.travelAmount);
+  if (!amount || amount <= 0) {
+    travelTableBody.innerHTML = '<tr><td colspan="3" class="travel-empty">Enter an amount greater than 0.</td></tr>';
+    return;
   }
-  travelTableBody.innerHTML = data.conversions.map(c => `
-    <tr>
-      <td class="cur">${c.currency}</td>
-      <td class="rate">${formatNumber(c.rate, 4)}</td>
-      <td class="val">${formatNumber(c.converted_amount)}</td>
-    </tr>
-  `).join('');
+
+  // Five major currencies from the app's supported currency list.
+  // The base currency itself is excluded.
+  const targets = CURRENCIES.filter(c => c !== state.travelBase).slice(0, 5);
+
+  try {
+    const data = await API.getTravelBudget(
+      state.travelBase,
+      amount,
+      targets
+    );
+
+    // Backend currently returns `results`. `conversions` is kept as a
+    // compatibility fallback in case an older backend is running.
+    const conversions = data.results || data.conversions || [];
+
+    if (!conversions.length) {
+      travelTableBody.innerHTML = '<tr><td colspan="3" class="travel-empty">No travel rates returned.</td></tr>';
+      return;
+    }
+
+    travelTableBody.innerHTML = conversions.map(c => {
+      const currency = c.currency;
+      const rate = c.exchange_rate ?? c.rate;
+      const convertedAmount = c.converted_amount;
+
+      // A travel row is considered liked if this exact pair, or the reverse
+      // pair, is already in the user's favorites.
+      const liked = state.favorites.some(f =>
+        (f.from_currency === state.travelBase && f.to_currency === currency) ||
+        (f.from_currency === currency && f.to_currency === state.travelBase)
+      );
+
+      return `
+        <tr class="${liked ? 'travel-liked' : ''}">
+          <td class="cur">
+            ${currency}
+            ${liked ? '<span class="liked-badge">★ Already liked</span>' : ''}
+          </td>
+          <td class="rate">${formatNumber(rate, 4)}</td>
+          <td class="val">${formatNumber(convertedAmount)}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    travelTableBody.innerHTML = `
+      <tr>
+        <td colspan="3" class="travel-empty">${e.message || 'Unable to load travel rates.'}</td>
+      </tr>
+    `;
+  }
 }
 
 init();

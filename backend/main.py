@@ -2,10 +2,14 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
 from database import engine, Base, get_db
-from model import ConversionRequest, FavoriteRequest
+from model import ConversionRequest, FavoriteRequest, TravelBudgetRequest
 from exchange_rate import get_exchange_rate
 from schemas import ConversionHistory, Favorite
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Query, HTTPException
+from datetime import date, timedelta
+import httpx
+from historical_rates import get_historical_rates
 
 app = FastAPI()
 
@@ -126,4 +130,99 @@ async def convert(
         "amount": request.amount,
         "exchange_rate": rate,
         "converted_amount": converted_amount
+    }
+
+@app.get("/trend")
+async def get_trend(
+    from_currency: str = Query(..., alias="from"),
+    to_currency: str = Query(..., alias="to"),
+    days: int = Query(30, ge=1, le=365)
+):
+    from_currency = from_currency.upper()
+    to_currency = to_currency.upper()
+
+    if from_currency == to_currency:
+        return {
+            "from": from_currency,
+            "to": to_currency,
+            "days": days,
+            "data": [
+                {
+                    "date": (
+                        date.today() - timedelta(days=i)
+                    ).isoformat(),
+                    "rate": 1.0
+                }
+                for i in range(days - 1, -1, -1)
+            ]
+        }
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days - 1)
+
+    try:
+        rates = await get_historical_rates(
+            from_currency,
+            to_currency,
+            start_date.isoformat(),
+            end_date.isoformat()
+        )
+
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail="Historical exchange-rate service failed"
+        ) from e
+
+    data = [
+        {
+            "date": row["date"],
+            "rate": row["rate"]
+        }
+        for row in rates
+    ]
+
+    return {
+        "from": from_currency,
+        "to": to_currency,
+        "days": days,
+        "data": data
+    }
+
+@app.post("/travel-budget")
+async def travel_budget(
+    request: TravelBudgetRequest,
+    db: Session = Depends(get_db)
+):
+    base_currency = request.base_currency.upper()
+
+    results = []
+
+    for target_currency in request.targets:
+        target_currency = target_currency.upper()
+
+        try:
+            rate = await get_exchange_rate(
+                base_currency,
+                target_currency
+            )
+
+            converted_amount = request.amount * rate
+
+            results.append({
+                "currency": target_currency,
+                "exchange_rate": rate,
+                "converted_amount": converted_amount
+            })
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to fetch rate for {target_currency}"
+            ) from e
+
+    return {
+        "base_currency": base_currency,
+        "amount": request.amount,
+        "results": results
     }

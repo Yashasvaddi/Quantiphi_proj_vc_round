@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meridian — Currency Exchange</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0b1b2a;
+    --ink-2:#123241;
+    --panel:rgba(255,255,255,0.055);
+    --panel-strong:rgba(255,255,255,0.09);
+    --border:rgba(232,199,102,0.18);
+    --border-soft:rgba(255,255,255,0.10);
+    --gold:#c9a227;
+    --gold-soft:#e8c766;
+    --paper:#ede7da;
+    --paper-dim:#b9c3c9;
+    --green:#5fbf8f;
+    --red:#d9695f;
+    --radius:18px;
+    --serif:'Fraunces', Georgia, serif;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+    --mono:'IBM Plex Mono', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    font-family:var(--sans);
+    color:var(--paper);
+    background:
+      radial-gradient(1100px 600px at 12% -10%, rgba(201,162,39,0.10), transparent 60%),
+      radial-gradient(900px 700px at 110% 10%, rgba(95,191,143,0.06), transparent 55%),
+      linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%);
+    background-attachment:fixed;
+    padding:40px 24px 80px;
+  }
+  /* subtle engraved guilloché-style texture, evokes banknote print */
+  body::before{
+    content:'';
+    position:fixed; inset:0; pointer-events:none; opacity:0.05;
+    background-image: repeating-linear-gradient(115deg, var(--gold) 0px, transparent 1px, transparent 8px);
+    mix-blend-mode:overlay;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    margin-bottom:34px; flex-wrap:wrap; gap:14px;
+    border-bottom:1px solid var(--border-soft);
+    padding-bottom:18px;
+  }
+  .brand h1{
+    font-family:var(--serif); font-weight:600; font-size:clamp(28px,4vw,38px);
+    margin:0; letter-spacing:0.2px; color:var(--paper);
+  }
+  .brand p{margin:4px 0 0; color:var(--paper-dim); font-size:14px;}
+  .clock{
+    font-family:var(--mono); font-size:13px; color:var(--gold-soft);
+    text-align:right; line-height:1.5;
+  }
+  .clock .date{display:block; color:var(--paper-dim);}
+
+  .grid{
+    display:grid; grid-template-columns: 1.55fr 1fr; gap:24px;
+  }
+  @media (max-width:900px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius);
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.06) inset,
+      0 20px 40px -24px rgba(0,0,0,0.6);
+    padding:26px;
+    margin-bottom:24px;
+  }
+  .panel-title{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .panel-title h2{
+    font-family:var(--serif); font-weight:600; font-size:19px; margin:0; color:var(--paper);
+  }
+  .panel-title .hint{font-size:12px; color:var(--paper-dim); font-family:var(--mono);}
+
+  /* ---- Converter ---- */
+  .converter-row{
+    display:grid; grid-template-columns: 1fr 44px 1fr; gap:12px; align-items:end;
+  }
+  .field label{
+    display:block; font-size:12px; color:var(--paper-dim); margin-bottom:8px;
+    font-family:var(--sans); font-weight:500;
+  }
+  .select-shell, .amount-shell{
+    background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border:1px solid var(--border-soft);
+    border-radius:12px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 2px 6px rgba(0,0,0,0.25) inset;
+    padding:2px 4px;
+  }
+  select{
+    width:100%; appearance:none; -webkit-appearance:none;
+    background:transparent; border:none; color:var(--paper);
+    font-family:var(--mono); font-size:16px; font-weight:600;
+    padding:12px 34px 12px 14px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23e8c766'/></svg>");
+    background-repeat:no-repeat; background-position:right 14px center;
+    cursor:pointer;
+  }
+  select:focus{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:10px;}
+  input[type=number]{
+    width:100%; background:transparent; border:none; color:var(--paper);
+    font-family:var(--serif); font-size:22px; font-weight:600;
+    padding:10px 14px;
+  }
+  input[type=number]:focus{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:10px;}
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button{margin:0;}
+
+  .swap-btn{
+    width:44px; height:44px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #2a4658, #0f2531);
+    border:1px solid var(--border);
+    color:var(--gold-soft); font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; align-self:center; margin-bottom:0;
+    box-shadow:0 3px 8px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.08) inset;
+    transition:transform .18s ease;
+  }
+  .swap-btn:hover{transform:rotate(180deg);}
+  .swap-btn:active{transform:rotate(180deg) scale(0.92);}
+
+  .result-strip{
+    margin-top:22px; padding-top:20px; border-top:1px dashed var(--border);
+    display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+  .result-value{
+    font-family:var(--serif); font-size:clamp(30px,4vw,42px); font-weight:700; color:var(--gold-soft);
+  }
+  .result-value .code{font-size:16px; color:var(--paper-dim); font-family:var(--mono); margin-left:8px; font-weight:500;}
+  .rate-note{font-family:var(--mono); font-size:12.5px; color:var(--paper-dim);}
+  .rate-note b{color:var(--paper);}
+
+  .status-line{margin-top:12px; font-size:12.5px; font-family:var(--mono); min-height:16px;}
+  .status-line.err{color:var(--red);}
+  .status-line.ok{color:var(--green);}
+
+  /* ---- Trend chart ---- */
+  .chart-wrap{position:relative;}
+  svg.trend{width:100%; height:220px; display:block; overflow:visible;}
+  .trend-meta{display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--paper-dim); margin-top:8px;}
+  .trend-delta{font-weight:600;}
+  .trend-delta.up{color:var(--green);}
+  .trend-delta.down{color:var(--red);}
+
+  /* ---- Favorites ---- */
+  .fav-add{
+    display:flex; gap:8px; margin-bottom:14px;
+  }
+  .btn{
+    font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer;
+    border-radius:10px; padding:10px 16px; border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(201,162,39,0.22), rgba(201,162,39,0.08));
+    color:var(--gold-soft);
+    transition:filter .15s ease, transform .15s ease;
+  }
+  .btn:hover{filter:brightness(1.15);}
+  .btn:active{transform:translateY(1px);}
+  .btn.ghost{background:transparent; color:var(--paper-dim); border-color:var(--border-soft);}
+  .btn.small{padding:6px 10px; font-size:12px;}
+
+  .fav-list{display:flex; flex-direction:column; gap:8px;}
+  .fav-chip{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--panel-strong); border:1px solid var(--border-soft);
+    border-radius:12px; padding:10px 12px; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .fav-chip:hover{border-color:var(--border);}
+  .fav-chip .pair{font-family:var(--mono); font-size:14px; font-weight:600; color:var(--paper);}
+  .fav-chip .pair .arrow{color:var(--gold-soft); margin:0 6px;}
+  .fav-chip .del{
+    background:none; border:none; color:var(--paper-dim); cursor:pointer; font-size:15px;
+    padding:2px 6px; border-radius:6px;
+  }
+  .fav-chip .del:hover{color:var(--red); background:rgba(217,105,95,0.12);}
+  .empty-note{color:var(--paper-dim); font-size:13px; font-family:var(--sans); padding:6px 2px;}
+
+  /* ---- Travel budgeting ---- */
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .toggle-copy{font-size:12.5px; color:var(--paper-dim); margin-top:4px; max-width:260px;}
+  .switch{
+    position:relative; width:46px; height:26px; flex:none;
+  }
+  .switch input{opacity:0; width:0; height:0; position:absolute;}
+  .switch .track{
+    position:absolute; inset:0; background:rgba(255,255,255,0.1); border:1px solid var(--border-soft);
+    border-radius:999px; transition:background .2s ease, border-color .2s ease; cursor:pointer;
+  }
+  .switch .track::after{
+    content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+    background:var(--paper); transition:transform .2s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.4);
+  }
+  .switch input:checked + .track{background:rgba(201,162,39,0.5); border-color:var(--gold);}
+  .switch input:checked + .track::after{transform:translateX(20px); background:var(--gold-soft);}
+
+  .travel-body{margin-top:18px; display:none;}
+  .travel-body.active{display:block;}
+  .travel-input-row{display:grid; grid-template-columns:1fr 110px; gap:10px; margin-bottom:16px;}
+
+  table.board{width:100%; border-collapse:collapse; font-family:var(--mono);}
+  table.board th{
+    text-align:left; font-size:11px; letter-spacing:0.02em; color:var(--paper-dim);
+    font-weight:500; padding:0 8px 8px; border-bottom:1px solid var(--border-soft);
+  }
+  table.board td{
+    padding:11px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-size:14.5px;
+  }
+  table.board tr:last-child td{border-bottom:none;}
+  table.board td.cur{color:var(--gold-soft); font-weight:600;}
+  table.board td.val{color:var(--paper); text-align:right; font-size:16px; font-weight:600;}
+  table.board td.rate{color:var(--paper-dim); text-align:right; font-size:12.5px;}
+
+  footer.app-footer{
+    text-align:center; color:var(--paper-dim); font-size:12px; margin-top:36px; font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <h1>Meridian</h1>
+      <p>Real-time exchange, trend history, and travel budgeting.</p>
+    </div>
+    <div class="clock">
+      <span id="clockTime">--:--:--</span>
+      <span class="date" id="clockDate">—</span>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT COLUMN -->
+    <div>
+      <section class="panel" id="converterPanel">
+        <div class="panel-title">
+          <h2>Convert</h2>
+          <span class="hint" id="lastUpdated">not converted yet</span>
+        </div>
+
+        <div class="converter-row">
+          <div class="field">
+            <label for="fromCurrency">From</label>
+            <div class="select-shell">
+              <select id="fromCurrency"></select>
+            </div>
+          </div>
+          <button class="swap-btn" id="swapBtn" title="Swap currencies" aria-label="Swap currencies">⇄</button>
+          <div class="field">
+            <label for="toCurrency">To</label>
+            <div class="select-shell">
+              <select id="toCurrency"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="converter-row" style="margin-top:14px; grid-template-columns:1fr;">
+          <div class="field">
+            <label for="amountInput">Amount</label>
+            <div class="amount-shell">
+              <input type="number" id="amountInput" min="0" step="0.01" value="100" />
+            </div>
+          </div>
+        </div>
+
+        <div class="result-strip">
+          <div>
+            <div class="result-value" id="resultValue">—<span class="code" id="resultCode"></span></div>
+            <div class="rate-note" id="rateNote">Enter an amount to see the live rate.</div>
+          </div>
+          <button class="btn" id="saveFavBtn">Save pair</button>
+        </div>
+        <div class="status-line" id="statusLine"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>30-day trend</h2>
+          <span class="hint" id="trendPairLabel">USD → EUR</span>
+        </div>
+        <div class="chart-wrap">
+          <svg class="trend" id="trendSvg" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="trend-meta">
+          <span id="trendRange">—</span>
+          <span class="trend-delta" id="trendDelta">—</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div>
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Favorites</h2>
+          <span class="hint" id="favCount">0 saved</span>
+        </div>
+        <div class="fav-list" id="favList">
+          <div class="empty-note">No favorites yet — convert a pair and save it for quick access.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Travel budgeting</h2>
+          <label class="switch">
+            <input type="checkbox" id="travelToggle" />
+            <span class="track"></span>
+          </label>
+        </div>
+        <p class="toggle-copy">Enter one amount and see it converted into five major currencies at once — handy for planning a trip budget.</p>
+
+        <div class="travel-body" id="travelBody">
+          <div class="travel-input-row">
+            <div class="amount-shell">
+              <input type="number" id="travelAmount" min="0" step="1" value="1000" />
+            </div>
+            <div class="select-shell">
+              <select id="travelBase"></select>
+            </div>
+          </div>
+          <table class="board">
+            <thead>
+              <tr><th>Currency</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr>
+            </thead>
+            <tbody id="travelTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <footer class="app-footer">Rates refresh on each conversion · Backend: FastAPI + SQLite</footer>
+</div>
+
+<script>
+/* =========================================================================
+   API LAYER
+   BASE_URL + apiClient + route functions. This is the only part of the app
+   that needs to change when the real backend is wired in — swap BASE_URL,
+   or the fetch bodies below, and every UI function keeps working unchanged.
+   ========================================================================= */
+const API = (() => {
+  const BASE_URL = 'http://127.0.0.1:8000';
+
+  async function request(path, options = {}) {
+    const res = await fetch(BASE_URL + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    if (!res.ok) {
+      let detail = 'Request failed';
+      try { detail = (await res.json()).detail || detail; } catch (e) {}
+      throw new Error(detail);
+    }
+    return res.json();
+  }
+
+  return {
+    // POST /convert
+    convert: (amount, fromCurrency, toCurrency) =>
+      request('/convert', {
+        method: 'POST',
+        body: JSON.stringify({ amount, from_currency: fromCurrency, to_currency: toCurrency })
+      }),
+
+    // GET /history
+    getHistory: () => request('/history'),
+
+    // GET /favorites
+    getFavorites: () => request('/favorites'),
+
+    // POST /favorites
+    addFavorite: (fromCurrency, toCurrency) =>
+      request('/favorites', {
+        method: 'POST',
+        body: JSON.stringify({ from_currency: fromCurrency, to_currency: toCurrency })
+      }),
+
+    // DELETE /favorites/{id}
+    deleteFavorite: (id) => request(`/favorites/${id}`, { method: 'DELETE' }),
+
+    // GET /trend?from=&to=&days=30  -- not implemented server-side yet,
+    // falls back to a deterministic mock series so the chart always renders.
+    getTrend: async (fromCurrency, toCurrency, days = 30) => {
+      try {
+        return await request(`/trend?from=${fromCurrency}&to=${toCurrency}&days=${days}`);
+      } catch (e) {
+        return Mock.trend(fromCurrency, toCurrency, days);
+      }
+    },
+
+    // POST /travel-budget -- not implemented server-side yet, mocked.
+    getTravelBudget: async (baseCurrency, amount, targets) => {
+      try {
+        return await request('/travel-budget', {
+          method: 'POST',
+          body: JSON.stringify({ base_currency: baseCurrency, amount, targets })
+        });
+      } catch (e) {
+        return Mock.travelBudget(baseCurrency, amount, targets);
+      }
+    }
+  };
+})();
+
+/* =========================================================================
+   MOCK DATA -- placeholder only, used until /trend and /travel-budget
+   exist on the backend, and as an offline fallback for /convert.
+   ========================================================================= */
+const Mock = (() => {
+  const BASE_RATES = { USD:1, EUR:0.92, GBP:0.79, JPY:147.5, INR:83.4, AUD:1.52, CAD:1.36, CHF:0.88 };
+
+  function pairRate(from, to) {
+    return (BASE_RATES[to] ?? 1) / (BASE_RATES[from] ?? 1);
+  }
+
+  function seeded(seed) {
+    let v = seed || 1;
+    return () => { v = (v * 9301 + 49297) % 233280; return v / 233280; };
+  }
+
+  function convert(amount, from, to) {
+    const rate = pairRate(from, to);
+    return { from: from, to: to, amount, exchange_rate: rate, converted_amount: amount * rate };
+  }
+
+  function trend(from, to, days) {
+    const base = pairRate(from, to);
+    const seed = [...(from + to)].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rand = seeded(seed);
+    const points = [];
+    let rate = base;
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      rate = Math.max(rate + (rand() - 0.5) * base * 0.014, base * 0.82);
+      points.push({ date: d.toISOString().slice(0,10), rate: Number(rate.toFixed(4)) });
+    }
+    return { from_currency: from, to_currency: to, points };
+  }
+
+  function travelBudget(base, amount, targets) {
+    const list = (targets && targets.length) ? targets
+      : ['USD','EUR','GBP','JPY','INR'].filter(c => c !== base).slice(0,5);
+    const conversions = list.map(c => {
+      const rate = pairRate(base, c);
+      return { currency: c, rate: Number(rate.toFixed(4)), converted_amount: Number((amount * rate).toFixed(2)) };
+    });
+    return { base_currency: base, amount, conversions };
+  }
+
+  return { convert, trend, travelBudget, CURRENCIES: Object.keys(BASE_RATES) };
+})();
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+const CURRENCY_NAMES = {
+  USD:'US Dollar', EUR:'Euro', GBP:'British Pound', JPY:'Japanese Yen',
+  INR:'Indian Rupee', AUD:'Australian Dollar', CAD:'Canadian Dollar', CHF:'Swiss Franc'
+};
+const CURRENCIES = Mock.CURRENCIES;
+
+let state = {
+  from: 'USD',
+  to: 'EUR',
+  amount: 100,
+  favorites: [],       // {id, from_currency, to_currency}
+  travelOn: false,
+  travelBase: 'USD',
+  travelAmount: 1000
+};
+
+/* =========================================================================
+   DOM REFS
+   ========================================================================= */
+const el = (id) => document.getElementById(id);
+const fromSelect = el('fromCurrency');
+const toSelect = el('toCurrency');
+const amountInput = el('amountInput');
+const swapBtn = el('swapBtn');
+const resultValue = el('resultValue');
+const resultCode = el('resultCode');
+const rateNote = el('rateNote');
+const statusLine = el('statusLine');
+const lastUpdated = el('lastUpdated');
+const saveFavBtn = el('saveFavBtn');
+const favList = el('favList');
+const favCount = el('favCount');
+const trendSvg = el('trendSvg');
+const trendPairLabel = el('trendPairLabel');
+const trendRange = el('trendRange');
+const trendDelta = el('trendDelta');
+const travelToggle = el('travelToggle');
+const travelBody = el('travelBody');
+const travelAmountInput = el('travelAmount');
+const travelBaseSelect = el('travelBase');
+const travelTableBody = el('travelTableBody');
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+function populateSelect(selectEl, selected) {
+  selectEl.innerHTML = CURRENCIES.map(c =>
+    `<option value="${c}" ${c === selected ? 'selected' : ''}>${c} — ${CURRENCY_NAMES[c]}</option>`
+  ).join('');
+}
+
+function init() {
+  populateSelect(fromSelect, state.from);
+  populateSelect(toSelect, state.to);
+  populateSelect(travelBaseSelect, state.travelBase);
+  tickClock();
+  setInterval(tickClock, 1000);
+  runConvert();
+  loadFavorites();
+  bindEvents();
+}
+
+function tickClock() {
+  const now = new Date();
+  el('clockTime').textContent = now.toLocaleTimeString('en-GB', { hour12:false });
+  el('clockDate').textContent = now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+}
+
+function bindEvents() {
+  fromSelect.addEventListener('change', () => { state.from = fromSelect.value; runConvert(); });
+  toSelect.addEventListener('change', () => { state.to = toSelect.value; runConvert(); });
+  amountInput.addEventListener('input', debounce(() => {
+    state.amount = parseFloat(amountInput.value) || 0;
+    runConvert();
+  }, 300));
+  swapBtn.addEventListener('click', () => {
+    [state.from, state.to] = [state.to, state.from];
+    fromSelect.value = state.from;
+    toSelect.value = state.to;
+    runConvert();
+  });
+  saveFavBtn.addEventListener('click', saveFavorite);
+
+  travelToggle.addEventListener('change', () => {
+    state.travelOn = travelToggle.checked;
+    travelBody.classList.toggle('active', state.travelOn);
+    if (state.travelOn) runTravelBudget();
+  });
+  travelAmountInput.addEventListener('input', debounce(() => {
+    state.travelAmount = parseFloat(travelAmountInput.value) || 0;
+    runTravelBudget();
+  }, 300));
+  travelBaseSelect.addEventListener('change', () => {
+    state.travelBase = travelBaseSelect.value;
+    runTravelBudget();
+  });
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+/* =========================================================================
+   CONVERT
+   ========================================================================= */
+async function runConvert() {
+  setStatus('');
+  if (!state.amount || state.amount <= 0) {
+    resultValue.innerHTML = '—';
+    rateNote.textContent = 'Enter an amount to see the live rate.';
+    return;
+  }
+  try {
+    let data;
+    try {
+      data = await API.convert(state.amount, state.from, state.to);
+    } catch (e) {
+      data = Mock.convert(state.amount, state.from, state.to);
+      setStatus('Backend not reachable — showing offline sample rate.', 'err');
+    }
+    resultValue.innerHTML = formatNumber(data.converted_amount) + `<span class="code">${state.to}</span>`;
+    rateNote.innerHTML = `1 <b>${state.from}</b> = ${formatNumber(data.exchange_rate, 4)} <b>${state.to}</b>`;
+    lastUpdated.textContent = 'updated ' + new Date().toLocaleTimeString('en-GB', { hour12:false });
+  } catch (err) {
+    setStatus(err.message, 'err');
+  }
+  loadTrend();
+}
+
+function setStatus(msg, kind) {
+  statusLine.textContent = msg || '';
+  statusLine.className = 'status-line' + (kind ? ' ' + kind : '');
+}
+
+function formatNumber(n, decimals) {
+  const d = decimals ?? 2;
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+/* =========================================================================
+   TREND CHART (hand-drawn SVG, no chart library)
+   ========================================================================= */
+async function loadTrend() {
+  trendPairLabel.textContent = `${state.from} → ${state.to}`;
+  let data;
+  try {
+    data = await API.getTrend(state.from, state.to, 30);
+  } catch (e) {
+    data = Mock.trend(state.from, state.to, 30);
+  }
+  drawTrend(data.points);
+}
+
+function drawTrend(points) {
+  const W = 640, H = 220, PAD = 20;
+  const values = points.map(p => p.rate);
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || 1;
+
+  const x = (i) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  const y = (v) => H - PAD - ((v - min) / span) * (H - PAD * 2);
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(2)} ${y(p.rate).toFixed(2)}`).join(' ');
+  const areaPath = `${linePath} L ${x(points.length - 1).toFixed(2)} ${H - PAD} L ${x(0).toFixed(2)} ${H - PAD} Z`;
+
+  const first = points[0].rate, last = points[points.length - 1].rate;
+  const pctChange = ((last - first) / first) * 100;
+  const up = pctChange >= 0;
+
+  trendDelta.textContent = `${up ? '▲' : '▼'} ${Math.abs(pctChange).toFixed(2)}% over 30d`;
+  trendDelta.className = 'trend-delta ' + (up ? 'up' : 'down');
+  trendRange.textContent = `${points[0].date}  →  ${points[points.length - 1].date}`;
+
+  const gridLines = [0.25, 0.5, 0.75].map(f =>
+    `<line x1="${PAD}" y1="${(H-PAD*2)*f+PAD}" x2="${W-PAD}" y2="${(H-PAD*2)*f+PAD}" stroke="rgba(255,255,255,0.06)" stroke-width="1" />`
+  ).join('');
+
+  trendSvg.innerHTML = `
+    <defs>
+      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${up ? '#5fbf8f' : '#c9a227'}" stop-opacity="0.28" />
+        <stop offset="100%" stop-color="${up ? '#5fbf8f' : '#c9a227'}" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${areaPath}" fill="url(#areaFill)" stroke="none" />
+    <path d="${linePath}" fill="none" stroke="${up ? '#5fbf8f' : '#e8c766'}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round" />
+    <circle cx="${x(points.length-1).toFixed(2)}" cy="${y(last).toFixed(2)}" r="4" fill="${up ? '#5fbf8f' : '#e8c766'}" />
+  `;
+}
+
+/* =========================================================================
+   FAVORITES
+   ========================================================================= */
+async function loadFavorites() {
+  try {
+    state.favorites = await API.getFavorites();
+  } catch (e) {
+    state.favorites = [];
+  }
+  renderFavorites();
+}
+
+function renderFavorites() {
+  favCount.textContent = `${state.favorites.length} saved`;
+  if (!state.favorites.length) {
+    favList.innerHTML = '<div class="empty-note">No favorites yet — convert a pair and save it for quick access.</div>';
+    return;
+  }
+  favList.innerHTML = state.favorites.map(f => `
+    <div class="fav-chip" data-from="${f.from_currency}" data-to="${f.to_currency}">
+      <span class="pair">${f.from_currency}<span class="arrow">→</span>${f.to_currency}</span>
+      <button class="del" data-id="${f.id}" title="Remove">✕</button>
+    </div>
+  `).join('');
+
+  favList.querySelectorAll('.fav-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      if (e.target.closest('.del')) return;
+      state.from = chip.dataset.from;
+      state.to = chip.dataset.to;
+      fromSelect.value = state.from;
+      toSelect.value = state.to;
+      runConvert();
+    });
+  });
+  favList.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      try { await API.deleteFavorite(id); } catch (err) {}
+      state.favorites = state.favorites.filter(f => String(f.id) !== String(id));
+      renderFavorites();
+    });
+  });
+}
+
+async function saveFavorite() {
+  const exists = state.favorites.some(f => f.from_currency === state.from && f.to_currency === state.to);
+  if (exists) { setStatus('That pair is already in your favorites.', 'err'); return; }
+  try {
+    const saved = await API.addFavorite(state.from, state.to);
+    state.favorites.push(saved);
+  } catch (e) {
+    state.favorites.push({ id: 'local-' + Date.now(), from_currency: state.from, to_currency: state.to });
+    setStatus('Saved locally — backend not reachable.', 'err');
+  }
+  renderFavorites();
+}
+
+/* =========================================================================
+   TRAVEL BUDGETING
+   ========================================================================= */
+async function runTravelBudget() {
+  if (!state.travelOn) return;
+  const targets = CURRENCIES.filter(c => c !== state.travelBase).slice(0, 5);
+  let data;
+  try {
+    data = await API.getTravelBudget(state.travelBase, state.travelAmount, targets);
+  } catch (e) {
+    data = Mock.travelBudget(state.travelBase, state.travelAmount, targets);
+  }
+  travelTableBody.innerHTML = data.conversions.map(c => `
+    <tr>
+      <td class="cur">${c.currency}</td>
+      <td class="rate">${formatNumber(c.rate, 4)}</td>
+      <td class="val">${formatNumber(c.converted_amount)}</td>
+    </tr>
+  `).join('');
+}
+
+init();
+</script>
+</body>
+</html>
